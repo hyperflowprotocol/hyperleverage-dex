@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useAccount, useSignTypedData } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
 import CustomSelect from './CustomSelect';
 
 export default function TradeBar({ 
@@ -9,12 +10,13 @@ export default function TradeBar({
   leverage, 
   setLeverage,
   getLeverageColor,
-  account,
+  account: propAccount,
   maxLeverage = 50,
   markets = []
 }) {
-  const { signTypedData, login } = usePrivy();
-  const { wallets } = useWallets();
+  const { address: account } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
+  const { open } = useAppKit();
   const [showSheet, setShowSheet] = useState(false);
   const [orderSide, setOrderSide] = useState('buy');
   const [orderType, setOrderType] = useState('market');
@@ -71,10 +73,11 @@ export default function TradeBar({
   };
 
   const handlePlaceOrder = async () => {
-    console.log('🔍 Order placement attempt:', { account, walletsCount: wallets.length, wallets });
+    console.log('🔍 Order placement attempt:', { account });
     
     if (!account) {
       alert('Please connect your wallet first');
+      open();
       return;
     }
 
@@ -156,12 +159,13 @@ export default function TradeBar({
         }
       };
 
-      console.log('📝 Signing EIP-712 message with Privy...');
+      console.log('📝 Signing EIP-712 message with Wagmi...');
       
-      const signature = await signTypedData({ domain, types, value }, {
-        title: `${orderSide.toUpperCase()} ${baseSymbol}`,
-        description: `Placing ${orderType} order for ${orderSize.toFixed(5)} ${baseSymbol}`,
-        buttonText: 'Sign Order'
+      const signature = await signTypedDataAsync({
+        domain,
+        types,
+        primaryType: 'HyperliquidTransaction',
+        message: value
       });
 
       console.log('✅ Signature obtained:', signature.slice(0, 20) + '...');

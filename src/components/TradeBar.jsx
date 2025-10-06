@@ -36,11 +36,13 @@ export default function TradeBar({
   const reqMargin = amount ? parseFloat(amount) / leverage : 0;
   const estFee = amount ? parseFloat(amount) * feeRate : 0;
   const estLiq = () => {
-    if (!amount || !price) return 0;
+    if (!amount || !price || !size) return 0;
+    const posSize = parseFloat(size);
+    const entryPrice = parseFloat(price);
     const margin = reqMargin;
-    const distance = (margin * 0.9) / price;
-    const pxMove = distance * price;
-    return orderSide === 'buy' ? price - pxMove : price + pxMove;
+    // Liquidation = entry ± (margin * 0.9) / position_size
+    const liqDistance = (margin * 0.9) / posSize;
+    return orderSide === 'buy' ? entryPrice - liqDistance : entryPrice + liqDistance;
   };
 
   useEffect(() => {

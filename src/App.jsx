@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useAccount, useDisconnect } from 'wagmi';
+import { useAppKit } from '@reown/appkit/react';
 import HyperliquidChart from './components/HyperliquidChart';
 import OrderBook from './components/OrderBook';
 import TradingSections from './components/TradingSections';
@@ -18,35 +19,9 @@ const getCoinLogo = (symbol) => {
 };
 
 function App() {
-  const { ready, authenticated, login, logout } = usePrivy();
-  const { wallets } = useWallets();
-  
-  // Mobile detection for WalletConnect fallback in DApp browsers
-  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-  
-  // Enhanced login with timeout and WalletConnect preference on mobile DApp browsers
-  const handleLogin = async () => {
-    try {
-      const loginPromise = login({
-        // Force WalletConnect on mobile dapp browsers to avoid injected provider conflicts
-        walletConnect: isMobile ? { mobileRedirect: 'deeplink' } : undefined,
-      });
-      
-      // Add 15 second timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout - please try again')), 15000)
-      );
-      
-      await Promise.race([loginPromise, timeoutPromise]);
-    } catch (e) {
-      const msg = String(e?.message || e);
-      if (msg.includes('User exited') || msg.includes('User rejected')) {
-        console.log('User canceled login');
-      } else {
-        alert(msg.includes('timeout') ? 'Connection timed out. Please try again.' : 'Connection failed: ' + msg);
-      }
-    }
-  };
+  const { address: account, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { open } = useAppKit();
   
   const [markets, setMarkets] = useState([]);
   const [prices, setPrices] = useState({});
@@ -61,31 +36,6 @@ function App() {
   const [showLeverageModal, setShowLeverageModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('default'); // default, gainers, losers, volume
-
-  // FIXED: Dedicated account state - single source of truth
-  // Only set when BOTH authenticated AND wallets.length > 0
-  const [account, setAccount] = useState(null);
-  
-  // Synchronize account state with Privy auth state
-  useEffect(() => {
-    console.log('🔍 WALLET STATE:', { ready, authenticated, walletsCount: wallets.length });
-    
-    if (authenticated && wallets.length > 0) {
-      // Find external wallet (not embedded) - user's actual Hyperliquid wallet
-      const externalWallet = wallets.find(w => w.walletClientType !== 'privy');
-      const connectedWallet = externalWallet ?? wallets[0];
-      const walletAddress = connectedWallet?.address;
-      
-      if (walletAddress) {
-        console.log('✅ Setting account:', walletAddress);
-        setAccount(walletAddress);
-      }
-    } else {
-      // Clear account immediately on disconnect
-      console.log('⚠️ Clearing account (not authenticated or no wallets)');
-      setAccount(null);
-    }
-  }, [authenticated, wallets]);
   
   const [usdcBalance, setUsdcBalance] = useState(0);
   const [marginUsed, setMarginUsed] = useState(0);
@@ -384,16 +334,14 @@ function App() {
     <div className="app">
       <header className="header">
         <h1 className="logo">Hyper Leverage</h1>
-        {ready && (
-          authenticated && account ? (
-            <div className="wallet-badge" onClick={logout}>
-              {account.slice(0, 6)}...{account.slice(-4)}
-            </div>
-          ) : (
-            <button onClick={handleLogin} className="connect-btn-small">
-              Connect Wallet
-            </button>
-          )
+        {isConnected && account ? (
+          <div className="wallet-badge" onClick={disconnect}>
+            {account.slice(0, 6)}...{account.slice(-4)}
+          </div>
+        ) : (
+          <button onClick={() => open()} className="connect-btn-small">
+            Connect Wallet
+          </button>
         )}
       </header>
 
